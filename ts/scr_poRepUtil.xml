@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Service AppVersion="3.4.1.101" UID="02B6781AC21F4B2E83EC3E57DCF10969" USI="Common\Library\scr_poRepUtil" ServiceTypeCode="Script" Caption="scr_poRepUtil">
+  <Text><![CDATA[
+/**
+  * Объект для работы с fastreport
+*/
+var po = {
+	required_fields: [],
+	params: {}	
+};
+
+/**
+  * инициализаця объекта, вызов проставления значений по умолчанию
+  * @param {Object} Self - Self из окна родителя
+*/
+po.init = function(Self){
+	po.ReportPreviewer = Self.Attributes('ReportPreviewer');
+	po.DateFilter = Self.ComponentsByName('wndDateFilter').Window;
+	po.DateFilterDs = po.DateFilter.ComponentsByName('dlData').Dataset;
+	po.setDefaults();	
+};
+
+/**
+	* проставление значений по умолчанию
+*/
+po.setDefaults = function(){
+	if (!dotToday) var dotToday = 0x00000007;
+	this
+		.defaults.DateFilter.call(po, dotToday);
+};
+
+/**
+  * Объект с значениями по умолчанию 
+  * @method DateFilter - проставление значений по умолчанию для фильтра дат
+    * @param {String} period - код периода из scr_SysEnums
+  * @returns {object} возврат сам po  
+*/
+po.defaults = {
+	DateFilter: function(period){
+		var DataFields = this.DateFilterDs.DataFields;
+		DataFields('DateFrom').IsRequired = true;
+		DataFields('DateTo').IsRequired = true;
+		this.DateFilterDs.Edit();
+		this.DateFilterDs.Values('PeriodType') = period;
+		this.DateFilterDs.Post();
+		
+		return this;
+	}
+};
+
+/**
+  * запись обязательных полей
+*/
+po.setRequired_fields = function(fields){
+	this.required_fields = _.union(this.required_fields, fields);	
+};
+
+/**
+  * запись параметров объекта, которые будут переписаны в аттрибуты
+  * @param {Object} params - объект, ключ - значение, которые станут аттрибутами
+*/
+po.setParams = function(params){
+	po.params = params;
+};
+
+/**
+  * проверка на заполнение обязательных полей
+  * и проставление аттрибутов объекта фастрепорт 
+  * @returns true
+*/    
+po.toReport = function (){ 
+	this.check_require = function(){
+		 _.forEach(this.required_fields, function(item){
+			 if (scr_Utils.IsEmptyValue(this[item.name])) {
+				 ShowWarningDialog(item.message);
+				throw {message: item.message};		
+			}
+		 }, po.params);
+	};
+
+	try {
+		this.check_require();
+	} catch (e) {
+		return false;
+	}
+	
+	// проставление аттрибутов 
+	for (var key in po.params)
+		po.ReportPreviewer.Report.Attributes(key) = po.params[key];
+
+	return true;	
+		
+};  
+
+/**
+  * Проставляет параметры в sq из аттрибутов объекта фаст репорт
+  * @param {Object} ReportPreviewer - объект отчета
+  * @param {String} ds - название датасета 
+  * @returns true
+*/
+po.toFastReport = function (ReportPreviewer, ds){
+	var Dataset = ReportPreviewer.DatasetByUSI(ds);
+	var SelectQuery = Dataset.SelectQuery;
+	
+	SelectQuery = Dataset.SelectQuery;
+	for ( var i = 0; i < ReportPreviewer.Report.Attributes.Count; i++){
+		setParam(ReportPreviewer.Report.Attributes.Items(i));
+	}
+
+	function getAttr(Name){
+		return ReportPreviewer.Report.Attributes(Name);
+	}
+	
+	function setParam(Name){
+		var val = getAttr(Name);
+		if (val != '')
+			if (!IsEmptyValue( SelectQuery.Parameters(Name) ))
+				scr_DB.SetParameterValue(SelectQuery.Parameters, Name, getAttr(Name));     		
+	}
+
+	return true;
+};]]></Text>
+  <Includes>
+    <Item ScriptUSI="scr_LoDash" UID="9D36240177C04B1D89BCA01ED5ABE6F0"/>
+    <Item ScriptUSI="scr_Utils" UID="F269FB94E8F647668D3154D4BB8EDC5F"/>
+    <Item ScriptUSI="scr_DB" UID="68B92E6F27F24D9DA8D8EDEDA120D19A"/>
+    <Item ScriptUSI="scr_WindowUtils" UID="D992E18F540641A088B15F812F83C388"/>
+  </Includes>
+</Service>
